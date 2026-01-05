@@ -3,6 +3,13 @@
 [![license](https://img.shields.io/badge/license-GPLv3+-brightgreen.svg)](https://www.gnu.org/licenses/gpl.html)
 [![Gitter](https://badges.gitter.im/bioasp/community.svg)](https://gitter.im/bioasp/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
+
+
+### Differences with the original bioasp/caspo branch
+
+A function to compute the error for each clamping has been added. It is used as a tool to refine the dataset and keep the more informative clampings.
+
+
 ### Reasoning on the response of logical signaling networks
 
 The manual identification of logic rules underlying a biological system is
