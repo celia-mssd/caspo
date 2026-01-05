@@ -30,11 +30,12 @@ def configure_mt(args, proxy, overwrite=None):
     if overwrite:
         overwrite(args, proxy)
 
-def learn_handler(args):
+def learn_handler(args, refining_dataset=True):
     logger = logging.getLogger("caspo")
 
     graph = core.Graph.read_sif(args.pkn)
     dataset = core.Dataset(args.midas, args.time)
+    dataset_all = core.Dataset(args.allcells, args.time)
     zipped = graph.compress(dataset.setup)
 
     learner = learn.Learner(zipped, dataset, args.length, args.discretization, args.factor)
@@ -47,6 +48,27 @@ def learn_handler(args):
     learner.learn(args.fit, args.size, configure)
 
     logger.info("Weighted MSE: %.4f", learner.networks.weighted_mse(dataset))
+
+    if refining_dataset == True:
+        logger.info("Starting refinement ...")
+        refined_df = learner.networks.refine_clampings(dataset,args.midas)[0]
+        df_scores = learner.networks.refine_clampings(dataset_all,args.allcells)[1]
+        logger.info("Saving midas file and scores  ...")
+        refined_df.to_csv(os.path.join(args.out, 'midas_refined.csv'), index=False)
+        df_scores.to_csv(os.path.join(args.out, 'scores.csv'), index=False)
+        logger.info("Refinement done ...")
+        #logger.info("Running caspo learn with the refined dataset ...")
+        #dataset_refined=core.Dataset(os.path.join(args.out, 'midas_refined.csv'),args.time)
+        #learner = learn.Learner(zipped, dataset_refined, args.length, args.discretization, args.factor)
+        #logger.info("Number of hyperedges (possible logical mappings) derived from the compressed PKN: %d", len(learner.hypergraph.hyper))
+
+        #if args.optimum:
+            #learner.optimum = core.LogicalNetworkList.from_csv(args.optimum)[0]
+
+        #configure = ft.partial(configure_mt, args) if args.threads else None
+        #learner.learn(args.fit, args.size, configure)
+
+        #logger.info("Weighted MSE: %.4f", learner.networks.weighted_mse(dataset_refined))
 
     rows = []
     exclusive, inclusive = learner.networks.combinatorics()
@@ -66,6 +88,9 @@ def learn_handler(args):
 
     visualize.mappings_frequency(df, args.out)
 
+    #if refining_dataset == True: 
+        #df = learner.networks.to_dataframe(dataset=dataset_refined, size=True)
+    #else :
     df = learner.networks.to_dataframe(dataset=dataset, size=True)
     df.to_csv(os.path.join(args.out, 'networks.csv'), index=False)
 
