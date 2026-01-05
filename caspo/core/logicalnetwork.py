@@ -511,6 +511,70 @@ class LogicalNetworkList(object):
 
         return mean_squared_error(readouts[pos], (np.sum(predictions, axis=0) / np.sum(self.__networks))[pos])
 
+    def refine_clampings(self, dataset, midas, n_jobs=-1):
+        """
+        Returns the refined dataframe of clampings after dropping the one(s) with the highest MSE.
+
+        Parameters
+        ----------
+        dataset: :class:`caspo.core.dataset.Dataset`
+            Dataset to compute MSE
+            
+        midas:
+            Absolute PATH to the MIDAS file used to create the dataset
+
+        n_jobs : int
+            Number of jobs to run in parallel. Default to -1 (all cores available)
+
+        Returns
+        -------
+        `pandas.DataFrame`_
+            DataFrame without the clampings with the highest error (MSE)
+
+        .. _pandas.DataFrame: http://pandas.pydata.org/pandas-docs/stable/dsintro.html#dataframe
+
+        """
+        predictions = np.zeros((len(self), len(dataset.clampings), len(dataset.setup.readouts)))
+        predictions[:, :, :] = Parallel(n_jobs=n_jobs)(delayed(__parallel_predictions__)(n, dataset.clampings, dataset.setup.readouts) for n in self)
+        for i, _ in enumerate(self):
+            predictions[i, :, :] *= self.__networks[i]
+        
+        readouts = dataset.readouts.values
+        predictions = np.sum(predictions, axis=0) / np.sum(self.__networks)
+        scores=[]
+        #print(predictions)
+        #print(readouts)
+ 
+        
+        for i in range(0,predictions.shape[0]): 
+            p = predictions[i]
+            r = readouts[i]
+            idx_nan = np.argwhere(np.isnan(r))
+            idx_nan = [x for lst in idx_nan for x in lst]
+            p = list(p)
+            r = list(r)
+            
+            if len(idx_nan) > 0 :
+                p_clean = [p[i]for i in range(len(p)) if i not in idx_nan]
+                r_clean = [r[i]for i in range(len(r)) if i not in idx_nan]
+            else:
+                p_clean=p
+                r_clean=r
+                
+            if len(r_clean)>0 and len(p_clean)>0:
+                s = mean_squared_error(r_clean,p_clean)
+                scores.append(s)
+        
+        idx_drop = scores.index(max(scores))
+        df = pd.read_csv(midas)
+        df_refined = df.drop(axis=0,labels=[idx_drop,idx_drop+len(df)/2])
+        cell_line = df.columns[0]
+        cell_names = list(dict.fromkeys(df[cell_line]))
+        df_scores = pd.DataFrame({"Cell":cell_names,"Score":scores})
+
+        return df_refined,df_scores 
+
+
     def __plot__(self):
         """
         Returns a `networkx.MultiDiGraph`_ ready for plotting. Edges weights correspond to mappings frequencies.
